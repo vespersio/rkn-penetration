@@ -139,7 +139,7 @@ func commandBuildGeoIP(args []string) error {
 	keys := sortedKeys(cidrs)
 	out := &routercommon.GeoIPList{
 		Entry: []*routercommon.GeoIP{{
-			CountryCode: cfg.OutputTag,
+			CountryCode: cfg.outputCode(),
 			Cidr:        make([]*routercommon.CIDR, 0, len(keys)),
 		}},
 	}
@@ -203,7 +203,7 @@ func commandBuildGeosite(args []string) error {
 	keys := sortedKeys(domains)
 	out := &routercommon.GeoSiteList{
 		Entry: []*routercommon.GeoSite{{
-			CountryCode: cfg.OutputTag,
+			CountryCode: cfg.outputCode(),
 			Domain:      make([]*routercommon.Domain, 0, len(keys)),
 		}},
 	}
@@ -232,13 +232,13 @@ func commandValidateGeoIP(args []string) error {
 	if len(list.Entry) != 1 {
 		return fmt.Errorf("expected exactly one geoip tag, got %d", len(list.Entry))
 	}
-	if list.Entry[0].CountryCode != *tag {
+	if !strings.EqualFold(list.Entry[0].CountryCode, *tag) {
 		return fmt.Errorf("expected geoip:%s, got geoip:%s", *tag, list.Entry[0].CountryCode)
 	}
 	if len(list.Entry[0].Cidr) == 0 {
 		return fmt.Errorf("geoip:%s is empty", *tag)
 	}
-	fmt.Printf("[geoip] geoip:%s contains %d CIDR entries\n", *tag, len(list.Entry[0].Cidr))
+	fmt.Printf("[geoip] geoip:%s contains %d CIDR entries\n", list.Entry[0].CountryCode, len(list.Entry[0].Cidr))
 	return nil
 }
 
@@ -260,13 +260,13 @@ func commandValidateGeosite(args []string) error {
 	if len(list.Entry) != 1 {
 		return fmt.Errorf("expected exactly one geosite category, got %d", len(list.Entry))
 	}
-	if list.Entry[0].CountryCode != *tag {
+	if !strings.EqualFold(list.Entry[0].CountryCode, *tag) {
 		return fmt.Errorf("expected geosite:%s, got geosite:%s", *tag, list.Entry[0].CountryCode)
 	}
 	if len(list.Entry[0].Domain) == 0 {
 		return fmt.Errorf("geosite:%s is empty", *tag)
 	}
-	fmt.Printf("[geosite] geosite:%s contains %d rules\n", *tag, len(list.Entry[0].Domain))
+	fmt.Printf("[geosite] geosite:%s contains %d rules\n", list.Entry[0].CountryCode, len(list.Entry[0].Domain))
 	return nil
 }
 
@@ -333,6 +333,10 @@ func readBuildConfig(path string) (*buildConfig, error) {
 		return nil, errors.New("output_tag is empty")
 	}
 	return &cfg, nil
+}
+
+func (cfg *buildConfig) outputCode() string {
+	return strings.ToUpper(cfg.OutputTag)
 }
 
 func readYAML(path string, out any) error {

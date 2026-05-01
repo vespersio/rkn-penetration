@@ -7,6 +7,8 @@ The output files contain exactly one tag/category:
 - `geoip.dat`: `geoip:proxy`
 - `geosite.dat`: `geosite:proxy`
 
+Internally the generated `.dat` stores the code as `PROXY`, because Xray normalizes `geosite:proxy` and `geoip:proxy` lookups to uppercase.
+
 The `proxy` result merges selected upstream categories with custom CIDR and domain rules from this repository.
 
 ## Configuration
