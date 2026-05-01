@@ -1,0 +1,8 @@
+output_tag: proxy
+include:
+  - ru-blocked
+  - kinopub
+  - category-dev
+  - ubiquiti
+custom:
+  - custom/geosite/proxy

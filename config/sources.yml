@@ -1,0 +1,5 @@
+geoip_dat_url: "https://raw.githubusercontent.com/runetfreedom/russia-blocked-geoip/release/geoip.dat"
+geosite_dat_url: "https://raw.githubusercontent.com/runetfreedom/russia-blocked-geosite/release/geosite.dat"
+tools:
+  dattool: "local Go tool: ./tools/dattool"
+  v2ray_core: "github.com/v2fly/v2ray-core/v5"

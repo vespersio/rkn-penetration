@@ -1,0 +1,12 @@
+# Add custom domain-list-community compatible rules, one per line.
+# Examples:
+# domain:example.com
+# full:api.example.com
+# keyword:example-cdn
+# regexp:^.*\.example\.net$
+# example.org
+
+domain:buf.build
+domain:fluxcd.io
+domain:teleos.club
+domain:9cache.com

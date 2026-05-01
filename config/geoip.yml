@@ -1,0 +1,13 @@
+output_tag: proxy
+include:
+  - ru-blocked
+  - ru-blocked-community
+  - re-filter
+  - telegram
+  - twitter
+  - facebook
+  - cloudflare
+  - cloudfront
+  - netflix
+custom:
+  - custom/geoip/proxy.txt
