@@ -66,17 +66,42 @@ jobs:
       - build-geoip
       - build-geosite
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/download-artifact@v4
         with:
           name: geoip
-          path: release
+          path: release-files
       - uses: actions/download-artifact@v4
         with:
           name: geosite
-          path: release
+          path: release-files
       - name: Prepare tag
         id: tag
         run: echo "tag=$(date -u +'%Y%m%d%H%M')" >> "$GITHUB_OUTPUT"
+      - name: Publish release branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          mkdir -p ../release-branch
+          cp release-files/geoip.dat ../release-branch/
+          cp release-files/geoip.dat.sha256 ../release-branch/
+          cp release-files/geosite.dat ../release-branch/
+          cp release-files/geosite.dat.sha256 ../release-branch/
+
+          if git ls-remote --exit-code --heads origin release >/dev/null 2>&1; then
+            git switch --force-create release origin/release
+          else
+            git switch --orphan release
+          fi
+
+          git rm -rf . >/dev/null 2>&1 || true
+          cp ../release-branch/* .
+          git add geoip.dat geoip.dat.sha256 geosite.dat geosite.dat.sha256
+          git commit -m "Update release artifacts ${{ steps.tag.outputs.tag }}" || echo "No release branch changes"
+          git push origin HEAD:release
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
@@ -84,8 +109,7 @@ jobs:
           name: ${{ steps.tag.outputs.tag }}
           make_latest: true
           files: |
-            release/geoip.dat
-            release/geoip.dat.sha256
-            release/geosite.dat
-            release/geosite.dat.sha256
-
+            release-files/geoip.dat
+            release-files/geoip.dat.sha256
+            release-files/geosite.dat
+            release-files/geosite.dat.sha256

@@ -27,9 +27,15 @@ Edit [config/geoip.yml](config/geoip.yml):
 ```yaml
 output_tag: proxy
 include:
+  - ru-blocked
+  - ru-blocked-community
+  - re-filter
   - telegram
+  - twitter
+  - facebook
   - cloudflare
-  - google
+  - cloudfront
+  - netflix
 custom:
   - custom/geoip/proxy.txt
 ```
@@ -44,12 +50,10 @@ Edit [config/geosite.yml](config/geosite.yml):
 ```yaml
 output_tag: proxy
 include:
-  - telegram
-  - youtube
-  - google
-  - github
-  - openai
-  - category-ads-all
+  - ru-blocked
+  - kinopub
+  - category-dev
+  - ubiquiti
 custom:
   - custom/geosite/proxy
 ```
@@ -107,11 +111,11 @@ make clean
 - `dist/geoip.dat.sha256`
 - `dist/geosite.dat.sha256`
 
-Generated `.dat` files are ignored in the main branch and published by GitHub Actions releases.
+Generated `.dat` files are ignored in the main branch and published by GitHub Actions to GitHub Releases and to the `release` branch.
 
 ## Xray Usage
 
-Download `geoip.dat` and `geosite.dat` from the latest GitHub Release and place them where Xray reads routing data files.
+Download `geoip.dat` and `geosite.dat` from the latest GitHub Release or from the stable raw links below, then place them where Xray reads routing data files.
 
 Example routing config:
 
@@ -141,7 +145,17 @@ Example routing config:
 
 ## Release URLs
 
-After the workflow runs, use files from:
+After the workflow runs, the latest files are always available from the `release` branch:
+
+```text
+https://raw.githubusercontent.com/vespersio/rkn-penetration/release/geosite.dat
+https://raw.githubusercontent.com/vespersio/rkn-penetration/release/geosite.dat.sha256
+
+https://raw.githubusercontent.com/vespersio/rkn-penetration/release/geoip.dat
+https://raw.githubusercontent.com/vespersio/rkn-penetration/release/geoip.dat.sha256
+```
+
+The same files are also attached to the latest GitHub Release:
 
 ```text
 https://github.com/vespersio/rkn-penetration/releases/latest/download/geoip.dat
