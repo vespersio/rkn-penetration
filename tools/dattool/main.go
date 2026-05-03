@@ -559,24 +559,34 @@ func domainKey(domain *routercommon.Domain) string {
 	return fmt.Sprintf("%d:%s", domain.Type, domain.Value)
 }
 
+type sanitizeRule struct {
+	raw   string
+	kind  string
+	value string
+}
+
 func sanitizeDomains(domains map[string]*routercommon.Domain, rawKeywords []string) (int, error) {
-	keywords := make([]string, 0, len(rawKeywords))
+	rules := make([]sanitizeRule, 0, len(rawKeywords))
 	for _, raw := range rawKeywords {
 		keyword := strings.ToLower(strings.TrimSpace(raw))
 		if keyword == "" {
 			return 0, errors.New("sanitize keyword must not be empty")
 		}
-		keywords = append(keywords, keyword)
+		rule := sanitizeRule{raw: raw, kind: "keyword", value: keyword}
+		if strings.HasPrefix(keyword, ".") {
+			rule.kind = "suffix"
+		}
+		rules = append(rules, rule)
 	}
-	if len(keywords) == 0 {
+	if len(rules) == 0 {
 		return 0, nil
 	}
 
 	removed := 0
 	for key, domain := range domains {
 		value := strings.ToLower(domain.Value)
-		for _, keyword := range keywords {
-			if strings.Contains(value, keyword) {
+		for _, rule := range rules {
+			if sanitizeRuleMatches(value, rule) {
 				delete(domains, key)
 				removed++
 				break
@@ -584,6 +594,15 @@ func sanitizeDomains(domains map[string]*routercommon.Domain, rawKeywords []stri
 		}
 	}
 	return removed, nil
+}
+
+func sanitizeRuleMatches(value string, rule sanitizeRule) bool {
+	switch rule.kind {
+	case "suffix":
+		return strings.HasSuffix(value, rule.value)
+	default:
+		return strings.Contains(value, rule.value)
+	}
 }
 
 func sortedKeys[T any](m map[string]T) []string {

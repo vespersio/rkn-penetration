@@ -61,11 +61,12 @@ custom:
 sanitize:
   - porn
   - kazino
+  - ".ru"
 ```
 
 Every listed upstream category is extracted from upstream `geosite.dat` and merged into the single output category `proxy`.
 
-`sanitize` removes geosite rules after upstream and custom rules are merged. Each value is a case-insensitive keyword matched against the rule value, so keep it conservative to avoid false positives.
+`sanitize` removes geosite rules after upstream and custom rules are merged. Plain values are case-insensitive keywords matched against the rule value. Values that start with a dot, such as `.ru`, are treated as domain suffix filters. Keep keywords conservative to avoid false positives.
 
 ## Add Custom CIDR
 
