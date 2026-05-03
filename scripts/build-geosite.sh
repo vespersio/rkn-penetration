@@ -20,6 +20,7 @@ upstream="${tmp_dir}/geosite.dat"
 download_dat geosite "${url}" "${upstream}"
 log geosite "extracting configured categories"
 log geosite "appending custom rules"
+log geosite "applying sanitize keywords"
 log geosite "validating rules"
 log geosite "building dist/geosite.dat"
 dattool build-geosite \
@@ -30,4 +31,3 @@ dattool build-geosite \
 write_sha256 "${DIST_DIR}/geosite.dat"
 log geosite "validating output"
 "${ROOT_DIR}/scripts/validate-geosite.sh"
-

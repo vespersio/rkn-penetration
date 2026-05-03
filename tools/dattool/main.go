@@ -25,6 +25,7 @@ type buildConfig struct {
 	OutputTag string   `yaml:"output_tag"`
 	Include   []string `yaml:"include"`
 	Custom    []string `yaml:"custom"`
+	Sanitize  []string `yaml:"sanitize"`
 }
 
 func main() {
@@ -48,6 +49,8 @@ func main() {
 		err = commandListGeoIP(os.Args[2:])
 	case "list-geosite":
 		err = commandListGeosite(os.Args[2:])
+	case "count-geosite-keywords":
+		err = commandCountGeositeKeywords(os.Args[2:])
 	default:
 		err = fmt.Errorf("unknown command: %s", os.Args[1])
 	}
@@ -196,6 +199,15 @@ func commandBuildGeosite(args []string) error {
 			domains[key] = domain
 		}
 	}
+
+	removed, err := sanitizeDomains(domains, cfg.Sanitize)
+	if err != nil {
+		return err
+	}
+	if len(cfg.Sanitize) > 0 {
+		fmt.Printf("[geosite] sanitized %d rules by keywords: %s\n", removed, strings.Join(cfg.Sanitize, ", "))
+	}
+
 	if len(domains) == 0 {
 		return errors.New("resulting geosite:proxy is empty")
 	}
@@ -316,6 +328,45 @@ func commandListGeosite(args []string) error {
 	sort.Strings(tags)
 	for _, tag := range tags {
 		fmt.Println(tag)
+	}
+	return nil
+}
+
+func commandCountGeositeKeywords(args []string) error {
+	fs := flag.NewFlagSet("count-geosite-keywords", flag.ExitOnError)
+	datPath := fs.String("dat", "", "geosite.dat")
+	keywordsArg := fs.String("keywords", "", "comma-separated keywords")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *datPath == "" || *keywordsArg == "" {
+		return errors.New("--dat and --keywords are required")
+	}
+
+	var list routercommon.GeoSiteList
+	if err := readProto(*datPath, &list); err != nil {
+		return err
+	}
+
+	keywords := strings.Split(*keywordsArg, ",")
+	counts := make(map[string]int, len(keywords))
+	for _, raw := range keywords {
+		keyword := strings.ToLower(strings.TrimSpace(raw))
+		if keyword == "" {
+			continue
+		}
+		counts[keyword] = 0
+		for _, entry := range list.Entry {
+			for _, domain := range entry.Domain {
+				if strings.Contains(strings.ToLower(domain.Value), keyword) {
+					counts[keyword]++
+				}
+			}
+		}
+	}
+
+	for _, keyword := range sortedKeys(counts) {
+		fmt.Printf("%s: %d\n", keyword, counts[keyword])
 	}
 	return nil
 }
@@ -506,6 +557,33 @@ func cidrKey(cidr *routercommon.CIDR) (string, error) {
 
 func domainKey(domain *routercommon.Domain) string {
 	return fmt.Sprintf("%d:%s", domain.Type, domain.Value)
+}
+
+func sanitizeDomains(domains map[string]*routercommon.Domain, rawKeywords []string) (int, error) {
+	keywords := make([]string, 0, len(rawKeywords))
+	for _, raw := range rawKeywords {
+		keyword := strings.ToLower(strings.TrimSpace(raw))
+		if keyword == "" {
+			return 0, errors.New("sanitize keyword must not be empty")
+		}
+		keywords = append(keywords, keyword)
+	}
+	if len(keywords) == 0 {
+		return 0, nil
+	}
+
+	removed := 0
+	for key, domain := range domains {
+		value := strings.ToLower(domain.Value)
+		for _, keyword := range keywords {
+			if strings.Contains(value, keyword) {
+				delete(domains, key)
+				removed++
+				break
+			}
+		}
+	}
+	return removed, nil
 }
 
 func sortedKeys[T any](m map[string]T) []string {

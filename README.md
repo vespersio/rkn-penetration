@@ -53,14 +53,19 @@ Edit [config/geosite.yml](config/geosite.yml):
 output_tag: proxy
 include:
   - ru-blocked
-  - kinopub
+  # - kinopub
   - category-dev
   - ubiquiti
 custom:
   - custom/geosite/proxy
+sanitize:
+  - porn
+  - kazino
 ```
 
 Every listed upstream category is extracted from upstream `geosite.dat` and merged into the single output category `proxy`.
+
+`sanitize` removes geosite rules after upstream and custom rules are merged. Each value is a case-insensitive keyword matched against the rule value, so keep it conservative to avoid false positives.
 
 ## Add Custom CIDR
 

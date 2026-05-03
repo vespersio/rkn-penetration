@@ -6,3 +6,12 @@ include:
   - ubiquiti
 custom:
   - custom/geosite/proxy
+sanitize:
+  - porn
+  - kazino
+  - casino
+  - xxx
+  - hentai
+  - webcam
+  - bookmaker
+  - poker
