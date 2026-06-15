@@ -1,9 +1,10 @@
 output_tag: proxy
 include:
   - ru-blocked
-  # - kinopub
+  - kinopub
   - category-dev
   - ubiquiti
+  - nintendo
 custom:
   - custom/geosite/proxy
 sanitize:
