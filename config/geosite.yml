@@ -5,6 +5,7 @@ include:
   - category-dev
   - ubiquiti
   - nintendo
+  - slack
 custom:
   - custom/geosite/proxy
 sanitize:
@@ -20,5 +21,4 @@ sanitize:
   - alko
   - polit
   - naked
-  - .ru
   - .ua
