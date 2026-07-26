@@ -18,5 +18,6 @@ fi
 log geoip "checking checksum"
 check_sha256 "${DIST_DIR}/geoip.dat.sha256"
 log geoip "checking tags"
-dattool validate-geoip --dat "${DIST_DIR}/geoip.dat" --tag proxy
-
+dattool validate-geoip \
+  --dat "${DIST_DIR}/geoip.dat" \
+  --config "${ROOT_DIR}/config/geoip.yml"

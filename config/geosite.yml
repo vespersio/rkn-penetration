@@ -1,24 +1,25 @@
-output_tag: proxy
-include:
-  - ru-blocked
-  - kinopub
-  - category-dev
-  - ubiquiti
-  - nintendo
-  - slack
-custom:
-  - custom/geosite/proxy
-sanitize:
-  - porn
-  - kazino
-  - casino
-  - xxx
-  - hentai
-  - webcam
-  - bookmaker
-  - poker
-  - vodka
-  - alko
-  - polit
-  - naked
-  - .ua
+outputs:
+  - output_tag: proxy
+    include:
+      - ru-blocked
+      - kinopub
+      - category-dev
+      - ubiquiti
+      - nintendo
+      - slack
+    custom:
+      - custom/geosite/proxy
+    sanitize:
+      - porn
+      - kazino
+      - casino
+      - xxx
+      - hentai
+      - webcam
+      - bookmaker
+      - poker
+      - vodka
+      - alko
+      - polit
+      - naked
+      - .ua

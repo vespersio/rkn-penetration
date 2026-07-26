@@ -21,7 +21,18 @@ type sourcesConfig struct {
 	GeositeDatURL string `yaml:"geosite_dat_url"`
 }
 
+type outputConfig struct {
+	OutputTag string   `yaml:"output_tag"`
+	Include   []string `yaml:"include"`
+	Custom    []string `yaml:"custom"`
+	Sanitize  []string `yaml:"sanitize"`
+}
+
 type buildConfig struct {
+	Outputs []outputConfig `yaml:"outputs"`
+
+	// Legacy single-output format. Keep it readable so existing configs continue
+	// to work while new configs use Outputs.
 	OutputTag string   `yaml:"output_tag"`
 	Include   []string `yaml:"include"`
 	Custom    []string `yaml:"custom"`
@@ -108,46 +119,50 @@ func commandBuildGeoIP(args []string) error {
 		return fmt.Errorf("read upstream geoip.dat: %w", err)
 	}
 
-	cidrs := make(map[string]*routercommon.CIDR)
-	for _, tag := range cfg.Include {
-		entry := findGeoIP(&upstream, tag)
-		if entry == nil {
-			return fmt.Errorf("geoip category not found in upstream: %s", tag)
-		}
-		fmt.Printf("[geoip] extracting tag: %s\n", tag)
-		for _, cidr := range entry.Cidr {
-			key, err := cidrKey(cidr)
-			if err != nil {
-				return fmt.Errorf("invalid upstream CIDR in %s: %w", tag, err)
-			}
-			cidrs[key] = proto.Clone(cidr).(*routercommon.CIDR)
-		}
-	}
-
 	baseDir := filepath.Dir(*configPath)
-	for _, customPath := range cfg.Custom {
-		fullPath := resolvePath(baseDir, customPath)
-		customCIDRs, err := readCustomCIDRs(fullPath)
-		if err != nil {
-			return err
-		}
-		for key, cidr := range customCIDRs {
-			cidrs[key] = cidr
-		}
-	}
-	if len(cidrs) == 0 {
-		return errors.New("resulting geoip:proxy is empty")
-	}
-
-	keys := sortedKeys(cidrs)
 	out := &routercommon.GeoIPList{
-		Entry: []*routercommon.GeoIP{{
-			CountryCode: cfg.outputCode(),
-			Cidr:        make([]*routercommon.CIDR, 0, len(keys)),
-		}},
+		Entry: make([]*routercommon.GeoIP, 0, len(cfg.Outputs)),
 	}
-	for _, key := range keys {
-		out.Entry[0].Cidr = append(out.Entry[0].Cidr, cidrs[key])
+	for _, output := range cfg.Outputs {
+		cidrs := make(map[string]*routercommon.CIDR)
+		for _, tag := range output.Include {
+			entry := findGeoIP(&upstream, tag)
+			if entry == nil {
+				return fmt.Errorf("geoip:%s: category not found in upstream: %s", output.OutputTag, tag)
+			}
+			fmt.Printf("[geoip:%s] extracting tag: %s\n", output.OutputTag, tag)
+			for _, cidr := range entry.Cidr {
+				key, err := cidrKey(cidr)
+				if err != nil {
+					return fmt.Errorf("invalid upstream CIDR in %s: %w", tag, err)
+				}
+				cidrs[key] = proto.Clone(cidr).(*routercommon.CIDR)
+			}
+		}
+
+		for _, customPath := range output.Custom {
+			fullPath := resolvePath(baseDir, customPath)
+			customCIDRs, err := readCustomCIDRs(fullPath)
+			if err != nil {
+				return fmt.Errorf("geoip:%s: %w", output.OutputTag, err)
+			}
+			for key, cidr := range customCIDRs {
+				cidrs[key] = cidr
+			}
+		}
+		if len(cidrs) == 0 {
+			return fmt.Errorf("resulting geoip:%s is empty", output.OutputTag)
+		}
+
+		keys := sortedKeys(cidrs)
+		entry := &routercommon.GeoIP{
+			CountryCode: output.outputCode(),
+			Cidr:        make([]*routercommon.CIDR, 0, len(keys)),
+		}
+		for _, key := range keys {
+			entry.Cidr = append(entry.Cidr, cidrs[key])
+		}
+		out.Entry = append(out.Entry, entry)
 	}
 
 	return writeProto(*outputPath, out)
@@ -175,52 +190,56 @@ func commandBuildGeosite(args []string) error {
 		return fmt.Errorf("read upstream geosite.dat: %w", err)
 	}
 
-	domains := make(map[string]*routercommon.Domain)
-	for _, tag := range cfg.Include {
-		entry := findGeosite(&upstream, tag)
-		if entry == nil {
-			return fmt.Errorf("geosite category not found in upstream: %s", tag)
-		}
-		fmt.Printf("[geosite] extracting category: %s\n", tag)
-		for _, domain := range entry.Domain {
-			key := domainKey(domain)
-			domains[key] = proto.Clone(domain).(*routercommon.Domain)
-		}
-	}
-
 	baseDir := filepath.Dir(*configPath)
-	for _, customPath := range cfg.Custom {
-		fullPath := resolvePath(baseDir, customPath)
-		customDomains, err := readCustomDomains(fullPath)
-		if err != nil {
-			return err
-		}
-		for key, domain := range customDomains {
-			domains[key] = domain
-		}
-	}
-
-	removed, err := sanitizeDomains(domains, cfg.Sanitize)
-	if err != nil {
-		return err
-	}
-	if len(cfg.Sanitize) > 0 {
-		fmt.Printf("[geosite] sanitized %d rules by keywords: %s\n", removed, strings.Join(cfg.Sanitize, ", "))
-	}
-
-	if len(domains) == 0 {
-		return errors.New("resulting geosite:proxy is empty")
-	}
-
-	keys := sortedKeys(domains)
 	out := &routercommon.GeoSiteList{
-		Entry: []*routercommon.GeoSite{{
-			CountryCode: cfg.outputCode(),
-			Domain:      make([]*routercommon.Domain, 0, len(keys)),
-		}},
+		Entry: make([]*routercommon.GeoSite, 0, len(cfg.Outputs)),
 	}
-	for _, key := range keys {
-		out.Entry[0].Domain = append(out.Entry[0].Domain, domains[key])
+	for _, output := range cfg.Outputs {
+		domains := make(map[string]*routercommon.Domain)
+		for _, tag := range output.Include {
+			entry := findGeosite(&upstream, tag)
+			if entry == nil {
+				return fmt.Errorf("geosite:%s: category not found in upstream: %s", output.OutputTag, tag)
+			}
+			fmt.Printf("[geosite:%s] extracting category: %s\n", output.OutputTag, tag)
+			for _, domain := range entry.Domain {
+				key := domainKey(domain)
+				domains[key] = proto.Clone(domain).(*routercommon.Domain)
+			}
+		}
+
+		for _, customPath := range output.Custom {
+			fullPath := resolvePath(baseDir, customPath)
+			customDomains, err := readCustomDomains(fullPath)
+			if err != nil {
+				return fmt.Errorf("geosite:%s: %w", output.OutputTag, err)
+			}
+			for key, domain := range customDomains {
+				domains[key] = domain
+			}
+		}
+
+		removed, err := sanitizeDomains(domains, output.Sanitize)
+		if err != nil {
+			return fmt.Errorf("geosite:%s: %w", output.OutputTag, err)
+		}
+		if len(output.Sanitize) > 0 {
+			fmt.Printf("[geosite:%s] sanitized %d rules by filters: %s\n", output.OutputTag, removed, strings.Join(output.Sanitize, ", "))
+		}
+
+		if len(domains) == 0 {
+			return fmt.Errorf("resulting geosite:%s is empty", output.OutputTag)
+		}
+
+		keys := sortedKeys(domains)
+		entry := &routercommon.GeoSite{
+			CountryCode: output.outputCode(),
+			Domain:      make([]*routercommon.Domain, 0, len(keys)),
+		}
+		for _, key := range keys {
+			entry.Domain = append(entry.Domain, domains[key])
+		}
+		out.Entry = append(out.Entry, entry)
 	}
 
 	return writeProto(*outputPath, out)
@@ -229,56 +248,52 @@ func commandBuildGeosite(args []string) error {
 func commandValidateGeoIP(args []string) error {
 	fs := flag.NewFlagSet("validate-geoip", flag.ExitOnError)
 	datPath := fs.String("dat", "", "geoip.dat")
-	tag := fs.String("tag", "proxy", "expected single tag")
+	configPath := fs.String("config", "", "geoip YAML config")
+	tag := fs.String("tag", "", "expected single tag (legacy validation mode)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	if *datPath == "" {
 		return errors.New("--dat is required")
+	}
+	expected, err := expectedTags(*configPath, *tag)
+	if err != nil {
+		return err
 	}
 
 	var list routercommon.GeoIPList
 	if err := readProto(*datPath, &list); err != nil {
 		return err
 	}
-	if len(list.Entry) != 1 {
-		return fmt.Errorf("expected exactly one geoip tag, got %d", len(list.Entry))
+	if err := validateGeoIPTags(&list, expected); err != nil {
+		return err
 	}
-	if !strings.EqualFold(list.Entry[0].CountryCode, *tag) {
-		return fmt.Errorf("expected geoip:%s, got geoip:%s", *tag, list.Entry[0].CountryCode)
-	}
-	if len(list.Entry[0].Cidr) == 0 {
-		return fmt.Errorf("geoip:%s is empty", *tag)
-	}
-	fmt.Printf("[geoip] geoip:%s contains %d CIDR entries\n", list.Entry[0].CountryCode, len(list.Entry[0].Cidr))
 	return nil
 }
 
 func commandValidateGeosite(args []string) error {
 	fs := flag.NewFlagSet("validate-geosite", flag.ExitOnError)
 	datPath := fs.String("dat", "", "geosite.dat")
-	tag := fs.String("tag", "proxy", "expected single category")
+	configPath := fs.String("config", "", "geosite YAML config")
+	tag := fs.String("tag", "", "expected single category (legacy validation mode)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	if *datPath == "" {
 		return errors.New("--dat is required")
 	}
+	expected, err := expectedTags(*configPath, *tag)
+	if err != nil {
+		return err
+	}
 
 	var list routercommon.GeoSiteList
 	if err := readProto(*datPath, &list); err != nil {
 		return err
 	}
-	if len(list.Entry) != 1 {
-		return fmt.Errorf("expected exactly one geosite category, got %d", len(list.Entry))
+	if err := validateGeositeTags(&list, expected); err != nil {
+		return err
 	}
-	if !strings.EqualFold(list.Entry[0].CountryCode, *tag) {
-		return fmt.Errorf("expected geosite:%s, got geosite:%s", *tag, list.Entry[0].CountryCode)
-	}
-	if len(list.Entry[0].Domain) == 0 {
-		return fmt.Errorf("geosite:%s is empty", *tag)
-	}
-	fmt.Printf("[geosite] geosite:%s contains %d rules\n", list.Entry[0].CountryCode, len(list.Entry[0].Domain))
 	return nil
 }
 
@@ -376,18 +391,117 @@ func readBuildConfig(path string) (*buildConfig, error) {
 	if err := readYAML(path, &cfg); err != nil {
 		return nil, err
 	}
-	if cfg.OutputTag == "" {
-		cfg.OutputTag = "proxy"
+
+	hasLegacyFields := cfg.OutputTag != "" || cfg.Include != nil || cfg.Custom != nil || cfg.Sanitize != nil
+	usingOutputs := cfg.Outputs != nil
+	if usingOutputs && hasLegacyFields {
+		return nil, errors.New("config must use either outputs or the legacy top-level output_tag/include/custom/sanitize fields, not both")
 	}
-	cfg.OutputTag = strings.TrimSpace(cfg.OutputTag)
-	if cfg.OutputTag == "" {
-		return nil, errors.New("output_tag is empty")
+	if usingOutputs && len(cfg.Outputs) == 0 {
+		return nil, errors.New("outputs must contain at least one output")
 	}
+	if !usingOutputs {
+		if strings.TrimSpace(cfg.OutputTag) == "" {
+			cfg.OutputTag = "proxy"
+		}
+		cfg.Outputs = []outputConfig{{
+			OutputTag: cfg.OutputTag,
+			Include:   cfg.Include,
+			Custom:    cfg.Custom,
+			Sanitize:  cfg.Sanitize,
+		}}
+	}
+
+	seen := make(map[string]struct{}, len(cfg.Outputs))
+	for i := range cfg.Outputs {
+		output := &cfg.Outputs[i]
+		output.OutputTag = strings.TrimSpace(output.OutputTag)
+		if output.OutputTag == "" {
+			return nil, fmt.Errorf("outputs[%d].output_tag is empty", i)
+		}
+		key := strings.ToUpper(output.OutputTag)
+		if _, ok := seen[key]; ok {
+			return nil, fmt.Errorf("duplicate output_tag: %s", output.OutputTag)
+		}
+		seen[key] = struct{}{}
+	}
+
 	return &cfg, nil
 }
 
-func (cfg *buildConfig) outputCode() string {
+func (cfg *outputConfig) outputCode() string {
 	return strings.ToUpper(cfg.OutputTag)
+}
+
+func expectedTags(configPath, tag string) ([]string, error) {
+	if configPath != "" && tag != "" {
+		return nil, errors.New("--config and --tag are mutually exclusive")
+	}
+	if configPath != "" {
+		cfg, err := readBuildConfig(configPath)
+		if err != nil {
+			return nil, err
+		}
+		tags := make([]string, 0, len(cfg.Outputs))
+		for _, output := range cfg.Outputs {
+			tags = append(tags, output.OutputTag)
+		}
+		return tags, nil
+	}
+	if tag == "" {
+		tag = "proxy"
+	}
+	return []string{tag}, nil
+}
+
+func validateGeoIPTags(list *routercommon.GeoIPList, expected []string) error {
+	if len(list.Entry) != len(expected) {
+		return fmt.Errorf("expected %d geoip tags, got %d", len(expected), len(list.Entry))
+	}
+	actual := make(map[string]*routercommon.GeoIP, len(list.Entry))
+	for _, entry := range list.Entry {
+		key := strings.ToUpper(entry.CountryCode)
+		if _, exists := actual[key]; exists {
+			return fmt.Errorf("duplicate geoip tag in output: %s", entry.CountryCode)
+		}
+		actual[key] = entry
+	}
+	for _, tag := range expected {
+		entry := actual[strings.ToUpper(tag)]
+		if entry == nil {
+			return fmt.Errorf("expected geoip:%s is missing", tag)
+		}
+		if len(entry.Cidr) == 0 {
+			return fmt.Errorf("geoip:%s is empty", tag)
+		}
+		fmt.Printf("[geoip] geoip:%s contains %d CIDR entries\n", entry.CountryCode, len(entry.Cidr))
+	}
+	return nil
+}
+
+func validateGeositeTags(list *routercommon.GeoSiteList, expected []string) error {
+	if len(list.Entry) != len(expected) {
+		return fmt.Errorf("expected %d geosite categories, got %d", len(expected), len(list.Entry))
+	}
+	actual := make(map[string]*routercommon.GeoSite, len(list.Entry))
+	for _, entry := range list.Entry {
+		key := strings.ToUpper(entry.CountryCode)
+		if _, exists := actual[key]; exists {
+			return fmt.Errorf("duplicate geosite category in output: %s", entry.CountryCode)
+		}
+		actual[key] = entry
+	}
+	for _, tag := range expected {
+		entry := actual[strings.ToUpper(tag)]
+		if entry == nil {
+			return fmt.Errorf("expected geosite:%s is missing", tag)
+		}
+		if len(entry.Domain) == 0 {
+			return fmt.Errorf("geosite:%s is empty", tag)
+		}
+		fmt.Printf("[geosite] geosite:%s contains %d rules\n", entry.CountryCode, len(entry.Domain))
+	}
+	return nil
 }
 
 func readYAML(path string, out any) error {

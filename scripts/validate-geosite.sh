@@ -18,5 +18,6 @@ fi
 log geosite "checking checksum"
 check_sha256 "${DIST_DIR}/geosite.dat.sha256"
 log geosite "checking categories"
-dattool validate-geosite --dat "${DIST_DIR}/geosite.dat" --tag proxy
-
+dattool validate-geosite \
+  --dat "${DIST_DIR}/geosite.dat" \
+  --config "${ROOT_DIR}/config/geosite.yml"

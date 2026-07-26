@@ -2,14 +2,14 @@
 
 Monorepo for building custom `geoip.dat` and `geosite.dat` from upstream ready-made `.dat` files.
 
-The output files contain exactly one tag/category:
+Each output file can contain one or more independently configured tags/categories, for example:
 
-- `geoip.dat`: `geoip:proxy`
-- `geosite.dat`: `geosite:proxy`
+- `geoip.dat`: `geoip:proxy`, `geoip:direct`
+- `geosite.dat`: `geosite:proxy`, `geosite:direct`
 
-Internally the generated `.dat` stores the code as `PROXY`, because Xray normalizes `geosite:proxy` and `geoip:proxy` lookups to uppercase.
+Internally the generated `.dat` stores codes in uppercase, because Xray normalizes lookups such as `geosite:proxy` and `geoip:proxy` to uppercase.
 
-The `proxy` result merges selected upstream categories with custom CIDR and domain rules from this repository.
+Every output tag merges only its own selected upstream categories and custom rules. Geosite sanitization is also applied independently to each output tag.
 
 ## Configuration
 
@@ -27,46 +27,62 @@ Change these URLs without editing scripts.
 Edit [config/geoip.yml](config/geoip.yml):
 
 ```yaml
-output_tag: proxy
-include:
-  - ru-blocked
-  - ru-blocked-community
-  - re-filter
-  - telegram
-  - twitter
-  - facebook
-  - cloudflare
-  - cloudfront
-  - netflix
-custom:
-  - custom/geoip/proxy.txt
+outputs:
+  - output_tag: proxy
+    include:
+      - ru-blocked
+      - ru-blocked-community
+      - re-filter
+      - telegram
+      - twitter
+      - facebook
+      - cloudflare
+      - cloudfront
+      - netflix
+    custom:
+      - custom/geoip/proxy.txt
+
+  - output_tag: direct
+    include:
+      - private
+    custom:
+      - custom/geoip/direct.txt
 ```
 
-Every listed upstream category is extracted from upstream `geoip.dat` and merged into the single output tag `proxy`.
-The build fails if a listed category does not exist in the configured upstream file.
+Each `include` list is extracted from upstream `geoip.dat` and merged only into its surrounding `output_tag`. Each `custom` list is likewise local to that tag. The build fails if an output tag is duplicated, is empty, has no resulting CIDRs, or references an upstream category that does not exist.
 
 ## Add Geosite Categories
 
 Edit [config/geosite.yml](config/geosite.yml):
 
 ```yaml
-output_tag: proxy
-include:
-  - ru-blocked
-  # - kinopub
-  - category-dev
-  - ubiquiti
-custom:
-  - custom/geosite/proxy
-sanitize:
-  - porn
-  - kazino
-  - ".ru"
+outputs:
+  - output_tag: proxy
+    include:
+      - ru-blocked
+      - category-dev
+      - ubiquiti
+    custom:
+      - custom/geosite/proxy
+    sanitize:
+      - porn
+      - kazino
+      - ".ru"
+
+  - output_tag: direct
+    include:
+      - category-ads-all
+    custom:
+      - custom/geosite/direct
+    sanitize:
+      - tracker
 ```
 
-Every listed upstream category is extracted from upstream `geosite.dat` and merged into the single output category `proxy`.
+Every output object is isolated: its `include`, `custom`, and `sanitize` values do not affect neighboring output tags.
 
 `sanitize` removes geosite rules after upstream and custom rules are merged. Plain values are case-insensitive keywords matched against the rule value. Values that start with a dot, such as `.ru`, are treated as domain suffix filters. Keep keywords conservative to avoid false positives.
+
+The old single-output top-level format (`output_tag`, `include`, `custom`, `sanitize`) remains supported for backward compatibility. Do not mix it with `outputs` in the same file.
 
 ## Add Custom CIDR
 
@@ -180,6 +196,6 @@ The build follows `extract -> merge text/protobuf entries -> build new dat`:
 2. Extract configured categories from the upstream protobuf data.
 3. Add custom CIDR or domain rules.
 4. Deduplicate entries.
-5. Build new `.dat` with only `proxy`.
+5. Build a new `.dat` containing exactly the configured output tags.
 6. Generate SHA256 checksums.
-7. Validate that only `proxy` exists and contains data.
+7. Validate that the output contains every configured tag, no extra tags, and non-empty data in each tag.
