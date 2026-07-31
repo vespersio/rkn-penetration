@@ -7,6 +7,7 @@ outputs:
       - ubiquiti
       - nintendo
       - slack
+      - spotify
     custom:
       - custom/geosite/proxy
     sanitize:
